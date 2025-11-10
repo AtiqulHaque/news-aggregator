@@ -11,6 +11,6 @@ Artisan::command('inspire', function () {
 // Schedule crawl jobs for active campaigns
 // This runs every minute - adjust frequency as needed
 Schedule::command('campaigns:schedule-crawl')
-    ->everyMinute()
+    ->everyFiveMinutes()
     ->withoutOverlapping()
     ->runInBackground();

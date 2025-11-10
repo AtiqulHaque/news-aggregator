@@ -6,11 +6,18 @@ use App\Jobs\CrawlCampaignJob;
 use App\Models\Article;
 use App\Models\Campaign;
 use App\Models\NewsSource;
+use App\Services\ElasticsearchService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 
 class ScheduleCrawlJobs extends Command
 {
+    public function __construct(
+        private ElasticsearchService $elasticsearchService
+    ) {
+        parent::__construct();
+    }
+
     /**
      * The name and signature of the console command.
      *
@@ -85,6 +92,26 @@ class ScheduleCrawlJobs extends Command
 
                 $this->info("Processing campaign '{$campaign->name}' with {$sources->count()} source(s)...");
 
+                // Delete all existing articles for this campaign before crawling (from database)
+                $campaignDeletedCount = Article::where('campaign_id', $campaign->id)->delete();
+
+                Log::info('Deleted existing articles for campaign before crawl', [
+                    'campaign_id' => $campaign->id,
+                    'campaign_name' => $campaign->name,
+                    'deleted_count' => $campaignDeletedCount,
+                ]);
+
+                if ($campaignDeletedCount > 0) {
+                    $this->line("  - Deleted {$campaignDeletedCount} existing article(s) from database for campaign '{$campaign->name}'");
+                }
+
+                // Delete all existing articles for this campaign from Elasticsearch
+                $esDeletedCount = $this->elasticsearchService->deleteByCampaignId($campaign->id);
+
+                if ($esDeletedCount > 0) {
+                    $this->line("  - Deleted {$esDeletedCount} existing article(s) from Elasticsearch for campaign '{$campaign->name}'");
+                }
+
                 foreach ($sources as $source) {
                     Log::info('Processing source', ['source' => $source->toArray()]);
                     // Check if it's time to crawl based on crawl_interval_minutes
@@ -101,7 +128,7 @@ class ScheduleCrawlJobs extends Command
                         continue;
                     }
 
-                    // Delete all existing articles for this source before crawling
+                    // Delete all existing articles for this source before crawling (from database)
                     $deletedCount = Article::where('source_id', $source->id)->delete();
 
                     Log::info('Deleted existing articles for source before crawl', [
@@ -113,7 +140,14 @@ class ScheduleCrawlJobs extends Command
                     ]);
 
                     if ($deletedCount > 0) {
-                        $this->line("  - Deleted {$deletedCount} existing article(s) for source '{$source->name}'");
+                        $this->line("  - Deleted {$deletedCount} existing article(s) from database for source '{$source->name}'");
+                    }
+
+                    // Delete all existing articles for this source from Elasticsearch
+                    $esSourceDeletedCount = $this->elasticsearchService->deleteBySourceId($source->id);
+
+                    if ($esSourceDeletedCount > 0) {
+                        $this->line("  - Deleted {$esSourceDeletedCount} existing article(s) from Elasticsearch for source '{$source->name}'");
                     }
 
                     // Dispatch crawl job

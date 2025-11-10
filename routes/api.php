@@ -4,6 +4,7 @@ use App\Http\Controllers\CampaignController;
 use App\Http\Controllers\CampaignSourceController;
 use App\Http\Controllers\CrawlJobController;
 use App\Http\Controllers\NewsSourceController;
+use App\Http\Controllers\SearchController;
 use Illuminate\Support\Facades\Route;
 
 // Campaign routes
@@ -30,4 +31,9 @@ Route::get('campaigns/{campaignId}/sources', [CampaignSourceController::class, '
 Route::get('news-sources/{sourceId}/campaigns', [CampaignSourceController::class, 'getBySource']);
 Route::post('campaigns/{campaignId}/sources/{sourceId}', [CampaignSourceController::class, 'attach']);
 Route::delete('campaigns/{campaignId}/sources/{sourceId}', [CampaignSourceController::class, 'detach']);
+
+// Search routes
+Route::get('search', [SearchController::class, 'search']);
+Route::get('search/suggest', [SearchController::class, 'suggest']);
+Route::get('search/filters', [SearchController::class, 'filters']);
 
