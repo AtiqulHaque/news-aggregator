@@ -237,7 +237,7 @@ class CnnNewsCrawlerService extends AbstractCrawlerService
             }
 
             // Step 2: Fetch and parse each article page
-            $maxArticles = 20; // Limit to prevent too many requests
+            $maxArticles = 50; // Limit to prevent too many requests
             $processedCount = 0;
 
             foreach (array_slice($articleLinks, 0, $maxArticles) as $articleUrl) {
