@@ -1,0 +1,1410 @@
+{
+    "openapi": "3.0.0",
+    "info": {
+        "title": "Campaign API",
+        "description": "API documentation for Campaign management system",
+        "version": "1.0.0"
+    },
+    "servers": [
+        {
+            "url": "http://localhost:8080/api",
+            "description": "Local development server"
+        }
+    ],
+    "paths": {
+        "/campaigns": {
+            "get": {
+                "tags": [
+                    "Campaigns"
+                ],
+                "summary": "Get a paginated list of campaigns",
+                "description": "Retrieve a paginated list of all campaigns. You can control the number of items per page using the per_page parameter.",
+                "operationId": "d2a1aecdf4c5fee4d3d5f820b5b2a250",
+                "parameters": [
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "description": "Number of items per page (default: 15)",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "default": 15,
+                            "maximum": 100,
+                            "minimum": 1
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/Campaign"
+                                            }
+                                        },
+                                        "meta": {
+                                            "properties": {
+                                                "current_page": {
+                                                    "type": "integer",
+                                                    "example": 1
+                                                },
+                                                "per_page": {
+                                                    "type": "integer",
+                                                    "example": 15
+                                                },
+                                                "total": {
+                                                    "type": "integer",
+                                                    "example": 100
+                                                },
+                                                "last_page": {
+                                                    "type": "integer",
+                                                    "example": 7
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "Campaigns"
+                ],
+                "summary": "Create a new campaign",
+                "description": "Create a new campaign with the provided data. All required fields must be provided.",
+                "operationId": "a0bb4df932d4174de20c996bfa6f3783",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "name",
+                                    "start_date"
+                                ],
+                                "properties": {
+                                    "name": {
+                                        "description": "Campaign name",
+                                        "type": "string",
+                                        "maxLength": 255,
+                                        "example": "Summer Sale Campaign"
+                                    },
+                                    "description": {
+                                        "description": "Campaign description",
+                                        "type": "string",
+                                        "example": "A promotional campaign for summer products",
+                                        "nullable": true
+                                    },
+                                    "start_date": {
+                                        "description": "Campaign start date and time",
+                                        "type": "string",
+                                        "format": "date-time",
+                                        "example": "2024-06-01T00:00:00Z"
+                                    },
+                                    "end_date": {
+                                        "description": "Campaign end date and time (must be after start_date)",
+                                        "type": "string",
+                                        "format": "date-time",
+                                        "example": "2024-08-31T23:59:59Z",
+                                        "nullable": true
+                                    },
+                                    "frequency_minutes": {
+                                        "description": "Frequency in minutes (default: 1440 = daily)",
+                                        "type": "integer",
+                                        "default": 1440,
+                                        "minimum": 1,
+                                        "example": 1440
+                                    },
+                                    "status": {
+                                        "description": "Campaign status",
+                                        "type": "string",
+                                        "default": "scheduled",
+                                        "enum": [
+                                            "scheduled",
+                                            "running",
+                                            "completed",
+                                            "failed"
+                                        ],
+                                        "example": "scheduled"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Campaign created successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Campaign created successfully"
+                                        },
+                                        "data": {
+                                            "$ref": "#/components/schemas/Campaign"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Validation failed"
+                                        },
+                                        "errors": {
+                                            "properties": {
+                                                "name": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "string",
+                                                        "example": "The name field is required."
+                                                    }
+                                                },
+                                                "start_date": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "string",
+                                                        "example": "The start date field is required."
+                                                    }
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/campaigns/{id}": {
+            "get": {
+                "tags": [
+                    "Campaigns"
+                ],
+                "summary": "Get a specific campaign",
+                "description": "Retrieve detailed information about a specific campaign by its ID.",
+                "operationId": "2932baff0a96253f970c1d3696fa5034",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "Campaign ID",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "example": 1
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/Campaign"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Campaign not found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Campaign not found"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "put": {
+                "tags": [
+                    "Campaigns"
+                ],
+                "summary": "Update a campaign",
+                "description": "Update an existing campaign. Only provided fields will be updated.",
+                "operationId": "0d9fdd982821a4e54848c1e4ca7e2918",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "Campaign ID",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "example": 1
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "name": {
+                                        "description": "Campaign name",
+                                        "type": "string",
+                                        "maxLength": 255,
+                                        "example": "Updated Campaign Name"
+                                    },
+                                    "description": {
+                                        "description": "Campaign description",
+                                        "type": "string",
+                                        "example": "Updated description",
+                                        "nullable": true
+                                    },
+                                    "start_date": {
+                                        "description": "Campaign start date and time",
+                                        "type": "string",
+                                        "format": "date-time",
+                                        "example": "2024-06-01T00:00:00Z"
+                                    },
+                                    "end_date": {
+                                        "description": "Campaign end date and time",
+                                        "type": "string",
+                                        "format": "date-time",
+                                        "example": "2024-08-31T23:59:59Z",
+                                        "nullable": true
+                                    },
+                                    "frequency_minutes": {
+                                        "description": "Frequency in minutes",
+                                        "type": "integer",
+                                        "minimum": 1,
+                                        "example": 1440
+                                    },
+                                    "status": {
+                                        "description": "Campaign status",
+                                        "type": "string",
+                                        "enum": [
+                                            "scheduled",
+                                            "running",
+                                            "completed",
+                                            "failed"
+                                        ],
+                                        "example": "running"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Campaign updated successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Campaign updated successfully"
+                                        },
+                                        "data": {
+                                            "$ref": "#/components/schemas/Campaign"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Campaign not found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Campaign not found"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Validation failed"
+                                        },
+                                        "errors": {
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "Campaigns"
+                ],
+                "summary": "Delete a campaign",
+                "description": "Permanently delete a campaign by its ID.",
+                "operationId": "48be2f3c96f59a0c784245bac7ea50dd",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "Campaign ID",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "example": 1
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Campaign deleted successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Campaign deleted successfully"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Campaign not found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Campaign not found"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/campaigns/status/{status}": {
+            "get": {
+                "tags": [
+                    "Campaigns"
+                ],
+                "summary": "Get campaigns by status",
+                "description": "Retrieve all campaigns that match the specified status.",
+                "operationId": "d6c74ceff7d8fbeea3f2966af1ddc498",
+                "parameters": [
+                    {
+                        "name": "status",
+                        "in": "path",
+                        "description": "Campaign status",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "scheduled",
+                                "running",
+                                "completed",
+                                "failed"
+                            ],
+                            "example": "running"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/Campaign"
+                                            }
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation error - Invalid status value",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Validation failed"
+                                        },
+                                        "errors": {
+                                            "properties": {
+                                                "status": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "string",
+                                                        "example": "Invalid status value."
+                                                    }
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/campaign-sources": {
+            "get": {
+                "tags": [
+                    "Campaign Sources"
+                ],
+                "summary": "Get all campaign-source associations",
+                "operationId": "0b209dd873c578140a712c4e92069a88",
+                "responses": {
+                    "200": {
+                        "description": "Success"
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "Campaign Sources"
+                ],
+                "summary": "Create campaign-source association",
+                "operationId": "ad67e03ca3682a158d4f7b0d267a7d6c",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "campaign_id": {
+                                        "type": "integer",
+                                        "example": 1
+                                    },
+                                    "source_id": {
+                                        "type": "integer",
+                                        "example": 1
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Created"
+                    },
+                    "422": {
+                        "description": "Validation error"
+                    }
+                }
+            }
+        },
+        "/campaign-sources/{id}": {
+            "get": {
+                "tags": [
+                    "Campaign Sources"
+                ],
+                "summary": "Get campaign-source association by ID",
+                "operationId": "79b9d8a809de2dc509b914ab015194da",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success"
+                    },
+                    "404": {
+                        "description": "Not found"
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "Campaign Sources"
+                ],
+                "summary": "Delete campaign-source association",
+                "operationId": "b5212c8bbc094a34d8956c8d2446d545",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success"
+                    },
+                    "404": {
+                        "description": "Not found"
+                    }
+                }
+            }
+        },
+        "/campaigns/{campaignId}/sources": {
+            "get": {
+                "tags": [
+                    "Campaign Sources"
+                ],
+                "summary": "Get sources for a campaign",
+                "operationId": "d11898a72a2d23e12fe755cdde04704c",
+                "parameters": [
+                    {
+                        "name": "campaignId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success"
+                    }
+                }
+            }
+        },
+        "/news-sources/{sourceId}/campaigns": {
+            "get": {
+                "tags": [
+                    "Campaign Sources"
+                ],
+                "summary": "Get campaigns for a source",
+                "operationId": "f32ae61cfd075ceed382588d722b231c",
+                "parameters": [
+                    {
+                        "name": "sourceId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success"
+                    }
+                }
+            }
+        },
+        "/campaigns/{campaignId}/sources/{sourceId}": {
+            "post": {
+                "tags": [
+                    "Campaign Sources"
+                ],
+                "summary": "Attach source to campaign",
+                "operationId": "3ed1e084e21473fe64649e30b813c0ff",
+                "parameters": [
+                    {
+                        "name": "campaignId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "sourceId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created"
+                    },
+                    "422": {
+                        "description": "Validation error"
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "Campaign Sources"
+                ],
+                "summary": "Detach source from campaign",
+                "operationId": "cc4760c02b9f46b0c7ce5cd16accade9",
+                "parameters": [
+                    {
+                        "name": "campaignId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "sourceId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success"
+                    },
+                    "404": {
+                        "description": "Not found"
+                    }
+                }
+            }
+        },
+        "/crawl-jobs": {
+            "get": {
+                "tags": [
+                    "Crawl Jobs"
+                ],
+                "summary": "Get paginated crawl jobs",
+                "operationId": "a0def5a9d4627c07dafd9d5aa263f394",
+                "parameters": [
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 15
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success"
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "Crawl Jobs"
+                ],
+                "summary": "Create crawl job",
+                "operationId": "730be85cf042be25772ba3175a13fecf",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CrawlJob"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Created"
+                    },
+                    "422": {
+                        "description": "Validation error"
+                    }
+                }
+            }
+        },
+        "/crawl-jobs/{id}": {
+            "get": {
+                "tags": [
+                    "Crawl Jobs"
+                ],
+                "summary": "Get crawl job by ID",
+                "operationId": "8d06f80bc3698580a4c7d3d78a082121",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success"
+                    },
+                    "404": {
+                        "description": "Not found"
+                    }
+                }
+            },
+            "put": {
+                "tags": [
+                    "Crawl Jobs"
+                ],
+                "summary": "Update crawl job",
+                "operationId": "9c36aaed93bc3362fd7a398d3d10bd09",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CrawlJob"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Success"
+                    },
+                    "404": {
+                        "description": "Not found"
+                    },
+                    "422": {
+                        "description": "Validation error"
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "Crawl Jobs"
+                ],
+                "summary": "Delete crawl job",
+                "operationId": "2d3062fc443188eba107c55bc45ba0bf",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success"
+                    },
+                    "404": {
+                        "description": "Not found"
+                    }
+                }
+            }
+        },
+        "/crawl-jobs/status/{status}": {
+            "get": {
+                "tags": [
+                    "Crawl Jobs"
+                ],
+                "summary": "Get crawl jobs by status",
+                "operationId": "1ac25ba3ebc8430ab9254e5e20a3b543",
+                "parameters": [
+                    {
+                        "name": "status",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "pending",
+                                "in_progress",
+                                "success",
+                                "failed"
+                            ]
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success"
+                    },
+                    "422": {
+                        "description": "Validation error"
+                    }
+                }
+            }
+        },
+        "/crawl-jobs/campaign/{campaignId}": {
+            "get": {
+                "tags": [
+                    "Crawl Jobs"
+                ],
+                "summary": "Get crawl jobs by campaign",
+                "operationId": "0b0a234d83889ed29a9389141f13a90e",
+                "parameters": [
+                    {
+                        "name": "campaignId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success"
+                    }
+                }
+            }
+        },
+        "/crawl-jobs/source/{sourceId}": {
+            "get": {
+                "tags": [
+                    "Crawl Jobs"
+                ],
+                "summary": "Get crawl jobs by source",
+                "operationId": "67cfd5ac5ad89cb1169251821c5eb958",
+                "parameters": [
+                    {
+                        "name": "sourceId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success"
+                    }
+                }
+            }
+        },
+        "/news-sources": {
+            "get": {
+                "tags": [
+                    "News Sources"
+                ],
+                "summary": "Get paginated news sources",
+                "operationId": "e3a72259ae9232c551a4a9ab5655e427",
+                "parameters": [
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 15
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/NewsSource"
+                                            }
+                                        },
+                                        "meta": {
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "News Sources"
+                ],
+                "summary": "Create news source",
+                "operationId": "555850445d7818cf14c40aa3ce69276e",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/NewsSource"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "$ref": "#/components/schemas/NewsSource"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation error"
+                    }
+                }
+            }
+        },
+        "/news-sources/{id}": {
+            "get": {
+                "tags": [
+                    "News Sources"
+                ],
+                "summary": "Get news source by ID",
+                "operationId": "b7f7b8cc39826dfed60c80e20ee8df33",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/NewsSource"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not found"
+                    }
+                }
+            },
+            "put": {
+                "tags": [
+                    "News Sources"
+                ],
+                "summary": "Update news source",
+                "operationId": "3e5b3689974aec730881c4329b948e24",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/NewsSource"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Success"
+                    },
+                    "404": {
+                        "description": "Not found"
+                    },
+                    "422": {
+                        "description": "Validation error"
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "News Sources"
+                ],
+                "summary": "Delete news source",
+                "operationId": "fb0840493dce84cb8fcae0549ff09878",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success"
+                    },
+                    "404": {
+                        "description": "Not found"
+                    }
+                }
+            }
+        },
+        "/news-sources/type/{type}": {
+            "get": {
+                "tags": [
+                    "News Sources"
+                ],
+                "summary": "Get news sources by type",
+                "operationId": "474d976cb9e218ad852291160e4dc4fc",
+                "parameters": [
+                    {
+                        "name": "type",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "website",
+                                "rss",
+                                "api"
+                            ]
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success"
+                    },
+                    "422": {
+                        "description": "Validation error"
+                    }
+                }
+            }
+        },
+        "/news-sources/active/list": {
+            "get": {
+                "tags": [
+                    "News Sources"
+                ],
+                "summary": "Get active news sources",
+                "operationId": "18984a5f1f2cee3c8bad5ff8e42b2319",
+                "responses": {
+                    "200": {
+                        "description": "Success"
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "Campaign": {
+                "description": "Campaign model",
+                "properties": {
+                    "id": {
+                        "description": "Campaign ID",
+                        "type": "integer",
+                        "format": "int64",
+                        "example": 1
+                    },
+                    "name": {
+                        "description": "Campaign name",
+                        "type": "string",
+                        "maxLength": 255,
+                        "example": "Summer Sale Campaign"
+                    },
+                    "description": {
+                        "description": "Campaign description",
+                        "type": "string",
+                        "example": "A promotional campaign for summer products",
+                        "nullable": true
+                    },
+                    "start_date": {
+                        "description": "Campaign start date and time",
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2024-06-01T00:00:00Z"
+                    },
+                    "end_date": {
+                        "description": "Campaign end date and time",
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2024-08-31T23:59:59Z",
+                        "nullable": true
+                    },
+                    "frequency_minutes": {
+                        "description": "Frequency in minutes (default: 1440 = daily)",
+                        "type": "integer",
+                        "example": 1440
+                    },
+                    "status": {
+                        "description": "Campaign status",
+                        "type": "string",
+                        "enum": [
+                            "scheduled",
+                            "running",
+                            "completed",
+                            "failed"
+                        ],
+                        "example": "scheduled"
+                    },
+                    "created_at": {
+                        "description": "Creation timestamp",
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2024-01-01T00:00:00Z"
+                    },
+                    "updated_at": {
+                        "description": "Last update timestamp",
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2024-01-01T00:00:00Z"
+                    }
+                },
+                "type": "object"
+            },
+            "CrawlJob": {
+                "description": "Crawl job model",
+                "properties": {
+                    "id": {
+                        "description": "Crawl job ID",
+                        "type": "integer",
+                        "format": "int64",
+                        "example": 1
+                    },
+                    "campaign_id": {
+                        "description": "Associated campaign ID",
+                        "type": "integer",
+                        "format": "int64",
+                        "example": 1,
+                        "nullable": true
+                    },
+                    "source_id": {
+                        "description": "Associated source ID",
+                        "type": "integer",
+                        "format": "int64",
+                        "example": 1,
+                        "nullable": true
+                    },
+                    "started_at": {
+                        "description": "Job start timestamp",
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2024-01-01T00:00:00Z"
+                    },
+                    "finished_at": {
+                        "description": "Job finish timestamp",
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2024-01-01T01:00:00Z",
+                        "nullable": true
+                    },
+                    "status": {
+                        "description": "Job status",
+                        "type": "string",
+                        "enum": [
+                            "pending",
+                            "in_progress",
+                            "success",
+                            "failed"
+                        ],
+                        "example": "pending"
+                    },
+                    "total_articles": {
+                        "description": "Total articles crawled",
+                        "type": "integer",
+                        "example": 0
+                    },
+                    "error_message": {
+                        "description": "Error message if failed",
+                        "type": "string",
+                        "example": "Connection timeout",
+                        "nullable": true
+                    },
+                    "created_at": {
+                        "description": "Creation timestamp",
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2024-01-01T00:00:00Z"
+                    },
+                    "updated_at": {
+                        "description": "Last update timestamp",
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2024-01-01T00:00:00Z"
+                    }
+                },
+                "type": "object"
+            },
+            "NewsSource": {
+                "description": "News source model",
+                "properties": {
+                    "id": {
+                        "description": "News source ID",
+                        "type": "integer",
+                        "format": "int64",
+                        "example": 1
+                    },
+                    "name": {
+                        "description": "Source name",
+                        "type": "string",
+                        "maxLength": 255,
+                        "example": "BBC News"
+                    },
+                    "base_url": {
+                        "description": "Base URL of the source",
+                        "type": "string",
+                        "example": "https://www.bbc.com"
+                    },
+                    "source_type": {
+                        "description": "Type of source",
+                        "type": "string",
+                        "enum": [
+                            "website",
+                            "rss",
+                            "api"
+                        ],
+                        "example": "rss",
+                        "nullable": true
+                    },
+                    "crawl_interval_minutes": {
+                        "description": "Crawl interval in minutes",
+                        "type": "integer",
+                        "example": 60
+                    },
+                    "is_active": {
+                        "description": "Whether the source is active",
+                        "type": "boolean",
+                        "example": true
+                    },
+                    "last_crawled_at": {
+                        "description": "Last crawl timestamp",
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2024-01-01T00:00:00Z",
+                        "nullable": true
+                    },
+                    "created_at": {
+                        "description": "Creation timestamp",
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2024-01-01T00:00:00Z"
+                    },
+                    "updated_at": {
+                        "description": "Last update timestamp",
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2024-01-01T00:00:00Z"
+                    }
+                },
+                "type": "object"
+            }
+        }
+    },
+    "tags": [
+        {
+            "name": "Campaigns",
+            "description": "Campaign management endpoints"
+        },
+        {
+            "name": "Campaign Sources",
+            "description": "Campaign-source association management endpoints"
+        },
+        {
+            "name": "Crawl Jobs",
+            "description": "Crawl job management endpoints"
+        },
+        {
+            "name": "News Sources",
+            "description": "News source management endpoints"
+        }
+    ]
+}
