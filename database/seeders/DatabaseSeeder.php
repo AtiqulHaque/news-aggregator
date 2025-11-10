@@ -30,7 +30,6 @@ class DatabaseSeeder extends Seeder
             CampaignSeeder::class,
             NewsSourceSeeder::class,
             CampaignSourceSeeder::class,
-            CrawlJobSeeder::class,
         ]);
     }
 }

@@ -27,9 +27,7 @@ class CampaignSourceSeeder extends Seeder
 
         // Associate each campaign with 2-4 random sources
         foreach ($campaigns as $campaign) {
-            $randomSources = $sources->random(rand(2, min(4, $sources->count())));
-            
-            foreach ($randomSources as $source) {
+            foreach ($sources as $source) {
                 // Check if association already exists
                 $exists = CampaignSource::where('campaign_id', $campaign->id)
                     ->where('source_id', $source->id)
