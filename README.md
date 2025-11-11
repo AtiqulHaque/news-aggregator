@@ -60,10 +60,12 @@ docker-compose exec app php artisan db:seed
 
 ### 2. Access Services
 
-- **API**: http://localhost:8080/api
 - **API Docs**: http://localhost:8080/api/documentation
 - **Horizon Dashboard**: http://localhost:8080/horizon
+- **Backend Log viewer**: http://localhost:8080/log-viewer
 - **PgAdmin**: http://localhost:5050 (admin@admin.com / admin)
+
+![API Documentation](api_docs.png)
 
 ### 3. View Logs
 
@@ -142,6 +144,7 @@ curl http://localhost:9200/_cluster/health
 # Check Elasticsearch logs
 docker-compose logs -f elasticsearch
 ```
+
 
 ## License
 
