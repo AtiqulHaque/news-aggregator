@@ -23,5 +23,13 @@ class NewsSourceSeeder extends Seeder
             'crawl_interval_minutes' => 5,
             'is_active' => true,
         ]);
+
+        NewsSource::create([
+            'name' => 'BBC News',
+            'base_url' => 'bbc.com',
+            'source_type' => 'website',
+            'crawl_interval_minutes' => 5,
+            'is_active' => true,
+        ]);
     }
 }

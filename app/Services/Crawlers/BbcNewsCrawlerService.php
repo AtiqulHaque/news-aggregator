@@ -3,6 +3,7 @@
 namespace App\Services\Crawlers;
 
 use App\Models\NewsSource;
+use Illuminate\Support\Facades\Log;
 
 class BbcNewsCrawlerService extends AbstractCrawlerService
 {
@@ -16,7 +17,7 @@ class BbcNewsCrawlerService extends AbstractCrawlerService
     public function supports(NewsSource $source): bool
     {
         $url = strtolower($source->base_url);
-        return str_contains($url, 'bbc.com') || str_contains($url, 'bbc.co.uk');
+        return str_contains($url, 'bbc.com');
     }
 
     public function crawl(NewsSource $source): array
@@ -24,123 +25,203 @@ class BbcNewsCrawlerService extends AbstractCrawlerService
         $articles = [];
 
         try {
-            $this->log('info', 'Starting BBC News crawl', ['source_id' => $source->id]);
+            Log::info('BBC News crawl started', ['source_id' => $source->id, 'base_url' => $source->base_url]);
 
-            // Try RSS feed first
-            $rssUrl = rtrim($source->base_url, '/') . '/feed';
-            try {
-                $html = $this->fetchHtml($rssUrl);
-                $articles = $this->parseRssFeed($html, $source);
-            } catch (\Exception $e) {
-                $this->log('warning', 'RSS feed failed, trying website', ['error' => $e->getMessage()]);
-                // Fall back to website crawling
-                $html = $this->fetchHtml($source->base_url);
-                $articles = $this->parseWebsite($html, $source);
+            // Ensure URL has protocol
+            $url = $source->base_url;
+            if (!str_starts_with($url, 'http://') && !str_starts_with($url, 'https://')) {
+                $url = 'https://' . ltrim($url, '/');
+                Log::info('BBC News URL fixed', ['original' => $source->base_url, 'fixed' => $url]);
             }
 
-            $this->log('info', 'BBC News crawl completed', [
-                'source_id' => $source->id,
-                'articles_count' => count($articles),
-            ]);
-        } catch (\Exception $e) {
+            // Try RSS feed first
+            $html = $this->fetchHtml($url);
+
+
+
+            // Wrap parseWebsite in try-catch to ensure we always get articles or handle gracefully
+            try {
+                $articles = $this->parseWebsite($html, $source);
+            } catch (\Throwable $parseError) {
+                // If parseWebsite itself throws (shouldn't happen, but be safe)
+                Log::error('BBC News parseWebsite threw exception', [
+                    'source_id' => $source->id,
+                    'error' => $parseError->getMessage(),
+                    'error_class' => get_class($parseError)
+                ]);
+
+                // Try to create a basic fallback article
+                try {
+                    $content = mb_substr(@strip_tags($html) ?: $html, 0, 2000) ?: 'Content unavailable';
+                    $articles[] = $this->createArticle(
+                        'BBC News - ' . $source->name,
+                        $source->base_url,
+                        $content,
+                        null,
+                        null,
+                        ['source' => 'bbc', 'fallback' => true, 'parse_error' => $parseError->getMessage()]
+                    );
+                } catch (\Throwable $fallbackError) {
+                    Log::error('BBC News even fallback creation failed', [
+                        'source_id' => $source->id,
+                        'parse_error' => $parseError->getMessage(),
+                        'fallback_error' => $fallbackError->getMessage()
+                    ]);
+                    $articles = [];
+                }
+            }
+
+            $this->log('info', 'BBC News crawl completed', ['source_id' => $source->id, 'articles_count' => count($articles)]);
+            Log::info('BBC News crawl completed', ['source_id' => $source->id, 'articles_count' => count($articles)]);
+        } catch (\Throwable $e) {
             $this->log('error', 'BBC News crawl failed', [
                 'source_id' => $source->id,
+                'base_url' => $source->base_url,
                 'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
             ]);
-            throw $e;
+            Log::error('BBC News crawl failed', [
+                'source_id' => $source->id,
+                'base_url' => $source->base_url,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            // Only throw if we don't have any articles (fallback should have created at least one)
+            if (empty($articles)) {
+                throw $e;
+            } else {
+                // We have fallback articles, log warning but don't throw
+                Log::warning('BBC News crawl had errors but returned fallback articles', [
+                    'source_id' => $source->id,
+                    'articles_count' => count($articles),
+                    'error' => $e->getMessage()
+                ]);
+            }
         }
 
         return $articles;
     }
 
-    /**
-     * Parse BBC RSS feed.
-     */
-    private function parseRssFeed(string $xml, NewsSource $source): array
-    {
-        $articles = [];
-        $xmlObj = simplexml_load_string($xml);
 
-        if ($xmlObj === false) {
-            throw new \Exception("Failed to parse RSS XML");
-        }
-
-        $items = $xmlObj->channel->item ?? [];
-        foreach ($items as $item) {
-            $title = (string) ($item->title ?? 'Untitled');
-            $url = (string) ($item->link ?? $source->base_url);
-            $content = (string) ($item->description ?? '');
-            $publishedAt = isset($item->pubDate) ? date('Y-m-d H:i:s', strtotime((string) $item->pubDate)) : null;
-
-            $articles[] = $this->createArticle(
-                $title,
-                $url,
-                $content,
-                null,
-                $publishedAt,
-                ['feed_type' => 'rss', 'source' => 'bbc']
-            );
-        }
-
-        return $articles;
-    }
 
     /**
      * Parse BBC website HTML.
+     * Step 1: Find all anchor tags with class container__link and extract hrefs
+     * Step 2: For each link, fetch the article page and parse headline__text and article__content
      */
-    private function parseWebsite(string $html, NewsSource $source): array
+    public function parseWebsite(string $html, NewsSource $source): array
     {
         $articles = [];
-        $dom = $this->parseHtml($html);
+        $dom = null;
 
         try {
-            // BBC uses specific article selectors
-            $articleElements = $dom->find('article, div[data-testid="card"], div[data-testid="story-card"]');
+            $dom = $this->parseHtml($html);
+        } catch (\Throwable $e) {
+            Log::error('BBC News parseHtml failed', [
+                'error' => $e->getMessage(),
+                'error_class' => get_class($e),
+            ]);
 
-            if (empty($articleElements)) {
-                // Try alternative BBC selectors
-                $articleElements = $dom->find('div.gs-c-promo, div.qa-story');
-            }
+            // If HTML parsing fails, create a fallback article
+            Log::info('BBC News creating fallback article due to parse failure', [
+                'source_id' => $source->id,
+                'error' => $e->getMessage()
+            ]);
 
-            foreach ($articleElements as $articleElement) {
-                // Extract title
-                $titleElement = $articleElement->find('h3, h2, .qa-story-headline, [data-testid="card-headline"]', 0);
-                $title = $this->extractText($titleElement);
-
-                // Extract link
-                $linkElement = $articleElement->find('a', 0);
-                $url = $source->base_url;
-                if ($linkElement) {
-                    $href = $this->extractAttribute($linkElement, 'href');
-                    if ($href) {
-                        $url = $this->resolveUrl($href, $source->base_url);
-                    }
+            try {
+                $content = '';
+                if (!empty($html)) {
+                    $stripped = @strip_tags($html);
+                    $content = mb_substr($stripped ?: $html, 0, 2000);
                 }
-
-                // Extract summary/description
-                $summaryElement = $articleElement->find('p, .qa-story-summary, [data-testid="card-description"]', 0);
-                $content = $this->extractText($summaryElement);
-
-                if (empty($title) && empty($url)) {
-                    continue;
-                }
-
-                if (empty($title)) {
-                    $title = 'BBC News Article';
+                if (empty($content)) {
+                    $content = 'Content unavailable - HTML parsing failed';
                 }
 
                 $articles[] = $this->createArticle(
-                    $title,
-                    $url,
+                    'BBC News - ' . $source->name,
+                    $source->base_url,
                     $content,
                     null,
                     null,
-                    ['source' => 'bbc', 'parsed_from' => 'website']
+                    ['source' => 'bbc', 'fallback' => true, 'parse_error' => $e->getMessage()]
                 );
+
+                return $articles;
+            } catch (\Throwable $fallbackError) {
+                Log::error('BBC News fallback article creation also failed', [
+                    'source_id' => $source->id,
+                    'original_error' => $e->getMessage(),
+                    'fallback_error' => $fallbackError->getMessage()
+                ]);
+                return [];
+            }
+        }
+
+        try {
+            // Step 1: Find all anchor tags with class container__link
+            Log::info('BBC News: Finding container__link anchors', ['base_url' => $source->base_url]);
+
+            // Try multiple selector variations for container__link
+            $linkSelectors = [
+                'a.huZCWi',
+                'a[data-testid*="internal-link"]',
+                'a[data-testid="internal-link"]',
+            ];
+
+            $articleLinks = [];
+            foreach ($linkSelectors as $selector) {
+                $linkElements = $dom->find($selector);
+                if (!empty($linkElements)) {
+                            Log::info('BBC News: Found links with selector', [
+                        'selector' => $selector,
+                        'count' => is_array($linkElements) ? count($linkElements) : 1
+                    ]);
+
+                    if (!is_array($linkElements)) {
+                        $linkElements = [$linkElements];
+                    }
+
+                    foreach ($linkElements as $linkElement) {
+                        $href = $this->extractAttribute($linkElement, 'href');
+                        if ($href) {
+                            // Ensure base URL has protocol
+                            $baseUrl = $source->base_url;
+                            if (!str_starts_with($baseUrl, 'http://') && !str_starts_with($baseUrl, 'https://')) {
+                                $baseUrl = 'https://' . ltrim($baseUrl, '/');
+                            }
+
+                            $fullUrl = $this->resolveUrl($href, $baseUrl);
+
+                            // Ensure the resolved URL is valid
+                            if (filter_var($fullUrl, FILTER_VALIDATE_URL)) {
+                                if (!in_array($fullUrl, $articleLinks)) {
+                                    $articleLinks[] = $fullUrl;
+                                }
+                            } else {
+                                Log::warning('BBC News: Invalid URL resolved', [
+                                    'href' => $href,
+                                    'base_url' => $baseUrl,
+                                    'resolved' => $fullUrl
+                                ]);
+                            }
+                        }
+                    }
+
+                    if (!empty($articleLinks)) {
+                        break; // Found links, no need to try other selectors
+                    }
+                }
             }
 
-            // If no articles found, create a fallback entry
-            if (empty($articles)) {
+            Log::info('BBC News: Extracted article links', [
+                'count' => count($articleLinks),
+                'links' => array_slice($articleLinks, 0, 5) // Log first 5 for debugging
+            ]);
+
+            if (empty($articleLinks)) {
+                Log::warning('BBC News: No article links found, creating fallback article');
                 $titleElement = $dom->find('title', 0);
                 $pageTitle = $this->extractText($titleElement) ?: 'BBC News';
 
@@ -150,11 +231,295 @@ class BbcNewsCrawlerService extends AbstractCrawlerService
                     mb_substr(strip_tags($html), 0, 2000),
                     null,
                     null,
-                    ['source' => 'bbc', 'fallback' => true]
+                    ['source' => 'bbc', 'fallback' => true, 'reason' => 'no_links_found']
+                );
+                return $articles;
+            }
+
+            // Step 2: Fetch and parse each article page
+            $maxArticles = 50; // Limit to prevent too many requests
+            $processedCount = 0;
+
+            foreach (array_slice($articleLinks, 0, $maxArticles) as $articleUrl) {
+                try {
+                    Log::info('BBC News: Fetching article', ['url' => $articleUrl, 'index' => $processedCount + 1]);
+
+                    // Fetch the article page
+                    $articleHtml = $this->fetchHtml($articleUrl);
+
+                    // Parse the article HTML
+                    $articleDom = $this->parseHtml($articleHtml);
+
+                    // Find headline__text class
+                    $headlineSelectors = [
+                        'h1.idLnWK',
+                    ];
+
+                    $title = '';
+                    foreach ($headlineSelectors as $selector) {
+                        $headlineElement = $articleDom->find($selector, 0);
+                        if ($headlineElement) {
+                            $title = $this->extractText($headlineElement);
+                            if (!empty($title)) {
+                                Log::info('BBC News: Found headline', ['title' => $title, 'selector' => $selector]);
+                                break;
+                            }
+                        }
+                    }
+
+                    // If no headline found, try fallback selectors
+                    if (empty($title)) {
+                        $fallbackSelectors = ['h1', 'title', '.sc-f98b1ad2-0 idLnWK', '[data-module="ArticleHeadline"]'];
+                        foreach ($fallbackSelectors as $selector) {
+                            $headlineElement = $articleDom->find($selector, 0);
+                            if ($headlineElement) {
+                                $title = $this->extractText($headlineElement);
+                                if (!empty($title)) {
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    // Extract author from byline__authors class
+                    $author = '';
+                    $authorSelectors = [
+                        '.djOqvY',
+                        '[class*="djOqvY"]',
+                        '[class="djOqvY"]',
+                        '.djOqvY',
+                        '[class*="djOqvY"]',
+                        '[class="djOqvY"]',
+                        '[data-module="ArticleAuthor"]',
+                    ];
+
+                    foreach ($authorSelectors as $selector) {
+                        $authorElement = $articleDom->find($selector, 0);
+                        if ($authorElement) {
+                            $author = $this->extractText($authorElement);
+                            $author = trim($author);
+                            if (!empty($author)) {
+                                Log::info('BBC News: Found author', ['author' => $author, 'selector' => $selector]);
+                                break;
+                            }
+                        }
+                    }
+
+                    // If no author found, try fallback selectors
+                    if (empty($author)) {
+                        $fallbackAuthorSelectors = [
+                            '.fDZyJx',
+                            '[class*="fDZyJx"]',
+                            '[class="fDZyJx"]',
+                            '[data-module="ArticleAuthor"]',
+                        ];
+                        foreach ($fallbackAuthorSelectors as $selector) {
+                            $authorElement = $articleDom->find($selector, 0);
+                            if ($authorElement) {
+                                $author = $this->extractText($authorElement);
+                                $author = trim($author);
+                                if (!empty($author)) {
+                                    Log::info('BBC News: Found author with fallback selector', [
+                                        'author' => $author,
+                                        'selector' => $selector
+                                    ]);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    // Find article__content class - extract all paragraphs
+                    $contentSelectors = [
+                        '.dPVOKT',
+                        '[class*="dPVOKT"]',
+                        '[class="dPVOKT"]'
+                    ];
+
+                    $content = '';
+                    $contentElement = null;
+
+                    foreach ($contentSelectors as $selector) {
+                        Log::info('BBC News: Trying to find content element with selector', ['selector' => $selector]);
+                        $contentElement = $articleDom->find($selector, 0);
+                        if ($contentElement) {
+                            Log::info('BBC News: Found content element', [
+                                'selector' => $selector,
+                                'element_type' => get_class($contentElement)
+                            ]);
+
+                            // Primary strategy: Extract all paragraphs and concatenate with newlines
+                            $paragraphs = $contentElement->find('p');
+                            if (!empty($paragraphs)) {
+                                $paragraphTexts = [];
+
+                                // Handle both array and single element
+                                if (!is_array($paragraphs)) {
+                                    $paragraphs = [$paragraphs];
+                                }
+
+                                Log::info('BBC News: Found paragraphs in content element', [
+                                    'paragraph_count' => count($paragraphs)
+                                ]);
+
+                                foreach ($paragraphs as $para) {
+                                    $paraText = $this->extractText($para);
+                                    $paraText = trim($paraText);
+
+                                    // Only add non-empty paragraphs with meaningful content
+                                    if (!empty($paraText) && strlen($paraText) > 10) {
+                                        $paragraphTexts[] = $paraText;
+                                    }
+                                }
+
+                                if (!empty($paragraphTexts)) {
+                                    // Concatenate all paragraphs with newline
+                                    $content = implode("\n\n", $paragraphTexts);
+                                    Log::info('BBC News: Extracted content from paragraphs', [
+                                        'paragraph_count' => count($paragraphTexts),
+                                        'content_length' => strlen($content),
+                                        'preview' => mb_substr($content, 0, 200)
+                                    ]);
+                                    break; // Successfully extracted, exit loop
+                                }
+                            }
+
+                            // Fallback: If no paragraphs found, try extracting text directly
+                            if (empty($content)) {
+                                $content = $this->extractText($contentElement);
+                                if (!empty(trim($content))) {
+                                    Log::info('BBC News: Extracted content directly from element', [
+                                        'content_length' => strlen($content),
+                                        'preview' => mb_substr($content, 0, 200)
+                                    ]);
+                                    break;
+                                }
+                            }
+
+                            // Last resort: Try to get all text elements (divs, spans with content)
+                            if (empty($content)) {
+                                $allTextElements = $contentElement->find('p, div, span');
+                                if (!empty($allTextElements)) {
+                                    if (!is_array($allTextElements)) {
+                                        $allTextElements = [$allTextElements];
+                                    }
+                                    $textParts = [];
+                                    foreach ($allTextElements as $textEl) {
+                                        $text = $this->extractText($textEl);
+                                        $text = trim($text);
+                                        // Only add meaningful text (more than 20 chars to avoid navigation/ads)
+                                        if (!empty($text) && strlen($text) > 20) {
+                                            $textParts[] = $text;
+                                        }
+                                    }
+                                    if (!empty($textParts)) {
+                                        // Remove duplicates and join with newlines
+                                        $content = implode("\n\n", array_unique($textParts));
+                                        Log::info('BBC News: Extracted content from text elements', [
+                                            'element_count' => count($textParts),
+                                            'content_length' => strlen($content)
+                                        ]);
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+
+                    // Final cleanup of content
+                    if (!empty($content)) {
+                        // Remove excessive whitespace
+                        $content = preg_replace('/\n{3,}/', "\n\n", $content);
+                        $content = trim($content);
+                    }
+
+                    // Log content extraction result
+
+                    // Only create article if we have at least a title or content
+                    if (!empty($title) || !empty($content)) {
+                        $articles[] = $this->createArticle(
+                            $title,
+                            $articleUrl,
+                            $content,
+                            !empty($author) ? $author : null,
+                            null,
+                            ['source' => 'bbc', 'parsed_from' => 'article_page', 'content_empty' => empty($content)]
+                        );
+
+                        $processedCount++;
+                        Log::info('BBC News: Article processed successfully', [
+                            'title' => $title,
+                            'author' => $author ?: 'N/A',
+                            'url' => $articleUrl,
+                            'content_length' => strlen($content),
+                            'content_preview' => mb_substr($content, 0, 100)
+                        ]);
+                    } else {
+                        Log::warning('BBC News: Article has no title or content, skipping', ['url' => $articleUrl]);
+                    }
+
+                    // Cleanup article DOM
+                    $this->cleanupDom($articleDom);
+
+                } catch (\Throwable $articleError) {
+                    Log::error('BBC News: Failed to process article', [
+                        'url' => $articleUrl,
+                        'error' => $articleError->getMessage(),
+                        'error_class' => get_class($articleError)
+                    ]);
+                    // Continue to next article instead of failing completely
+                    continue;
+                }
+
+                // Add small delay to avoid overwhelming the server
+                if ($processedCount < count(array_slice($articleLinks, 0, $maxArticles))) {
+                    usleep(500000); // 0.5 second delay
+                }
+            }
+
+            Log::info('BBC News: Finished processing articles', [
+                'total_links' => count($articleLinks),
+                'processed' => $processedCount,
+                'articles_created' => count($articles)
+            ]);
+
+            // If no articles were created, create a fallback
+            if (empty($articles)) {
+                Log::warning('BBC News: No articles created from links, creating fallback');
+                $titleElement = $dom->find('title', 0);
+                $pageTitle = $this->extractText($titleElement) ?: 'BBC News';
+
+                $articles[] = $this->createArticle(
+                    $pageTitle,
+                    $source->base_url,
+                    mb_substr(strip_tags($html), 0, 2000),
+                    null,
+                    null,
+                    ['source' => 'bbc', 'fallback' => true, 'reason' => 'no_articles_created']
+                );
+            }
+
+        } catch (\Exception $e) {
+            Log::error('BBC News parsing error', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            // Create a fallback article even if parsing fails
+            if (empty($articles)) {
+                $articles[] = $this->createArticle(
+                    'BBC News - ' . $source->name,
+                    $source->base_url,
+                    mb_substr(strip_tags($html), 0, 2000) ?: 'Content unavailable',
+                    null,
+                    null,
+                    ['source' => 'bbc', 'fallback' => true, 'parse_error' => $e->getMessage()]
                 );
             }
         } finally {
-            $this->cleanupDom($dom);
+            if ($dom) {
+                $this->cleanupDom($dom);
+            }
         }
 
         return $articles;

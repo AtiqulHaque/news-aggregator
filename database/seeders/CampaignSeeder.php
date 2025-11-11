@@ -27,13 +27,13 @@ class CampaignSeeder extends Seeder
             'frequency_minutes' => 1440, // Daily
         ]);
 
-        // Campaign::factory()->create([
-        //     'name' => 'Daily BBC News Newsletter Campaign',
-        //     'description' => 'Sends daily BBC News newsletter to all subscribers',
-        //     'status' => 'running',
-        //     'start_date' => $now->copy()->subDays(10),
-        //     'end_date' => null,
-        //     'frequency_minutes' => 1440, // Daily
-        // ]);
+        Campaign::factory()->create([
+            'name' => 'Daily BBC News Newsletter Campaign',
+            'description' => 'Sends daily BBC News newsletter to all subscribers',
+            'status' => 'running',
+            'start_date' => $now->copy()->subDays(10),
+            'end_date' => null,
+            'frequency_minutes' => 1440, // Daily
+        ]);
     }
 }

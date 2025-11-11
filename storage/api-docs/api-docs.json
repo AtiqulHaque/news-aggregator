@@ -1272,11 +1272,11 @@
                     {
                         "name": "sort",
                         "in": "query",
-                        "description": "Sort field (published_at, created_at, _score)",
+                        "description": "Sort field (_score for relevance, created_at for date)",
                         "required": false,
                         "schema": {
                             "type": "string",
-                            "default": "published_at"
+                            "default": "_score"
                         }
                     },
                     {

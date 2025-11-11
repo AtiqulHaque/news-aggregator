@@ -149,7 +149,7 @@ docker-compose exec -T app php artisan cache:clear || true
 
 echo "✅ Setup complete!"
 echo ""
-echo "🌐 Access your application at: http://localhost:8080"
+echo "🌐 Access your application at: http://localhost:8080/api/documentation"
 echo "📊 Access Horizon dashboard at: http://localhost:8080/horizon"
 echo "🗄️  Access pgAdmin at: http://localhost:5050"
 echo "   Email: admin@admin.com"
